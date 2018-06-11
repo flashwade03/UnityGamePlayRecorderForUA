@@ -1,11 +1,14 @@
-import sys, os, subprocess
+import sys, os, subprocess, time
 from xml.etree.ElementTree import parse, Element, ElementTree, SubElement, dump
+from Quartz import (CGWindowListCopyWindowInfo, kCGWindowListOptionOnScreenOnly, kCGNullWindowID)
 from PyQt5.QtCore import QCoreApplication, Qt, pyqtSlot
 from PyQt5.QtGui import QIcon, QColor
 from PyQt5.QtWidgets import QApplication, QWidget, QMainWindow, QPushButton, QAction, QMessageBox
 from PyQt5.QtWidgets import QCalendarWidget, QFontDialog, QColorDialog, QTextEdit, QFileDialog
 from PyQt5.QtWidgets import QCheckBox, QProgressBar, QComboBox, QLabel, QStyleFactory, QLineEdit, QInputDialog, QGroupBox
 from PyQt5.QtWidgets import QFormLayout, QBoxLayout, QHBoxLayout
+from pynput import mouse
+from pynput.mouse import Button, Controller
 
 class window(QWidget):
 
@@ -18,6 +21,7 @@ class window(QWidget):
         self.layout_base = None
 
         self.current_game_location = None
+        self.current_game = None
         self.group_game = None
         self.list_game = None
         self.btn_reload_gamelist = None
@@ -46,6 +50,7 @@ class window(QWidget):
 
     def onActivated(self, text):
         app = text.split('.app')[0]
+        self.current_game = app
         self.current_game_location = os.getcwd()+'/games/'+text+'/Contents/MacOS/'+app
         print 'current item : '+text
         print 'current app location : '+self.current_game_location
@@ -55,21 +60,55 @@ class window(QWidget):
         self.list_game.clear()
         self.list_game.addItems(files)
         app = files[0].split('.app')[0]
+        self.current_game = app
         self.current_game_location = os.getcwd()+'/games/'+files[0]+'/Contents/MacOS/'+app
         print 'current item : '+files[0]
         print 'current app location : '+self.current_game_location
 
     def onClickGameStart(self):
         if self.current_game_location != None and self.lb_width.text().isdigit() and self.lb_height.text().isdigit():
+            self.width = float(self.lb_width.text())
+            self.height = float(self.lb_height.text())
             command = self.current_game_location + ' -screen-width '+self.lb_width.text()+' -screen-height '+self.lb_height.text()
             #os.system(command)
             subprocess.Popen([command], shell=True)
             return True
 
     def onClickRecordStart(self):
+        command = "pgrep -l %s | awk '{print $1}'" %(self.current_game)
+        child = subprocess.Popen(command, stdout=subprocess.PIPE, shell=True)
+        result = child.communicate()[0].strip()
+        game_started = False
+        options = kCGWindowListOptionOnScreenOnly
+        geometry = None
+        while game_started == False:
+            window_list = CGWindowListCopyWindowInfo(options, kCGNullWindowID)
+            for window in window_list:
+                pid = window['kCGWindowOwnerPID']
+                if str(result) == str(pid):
+                    geometry = window['kCGWindowBounds']
+                    print geometry
+                    game_started = True
+        
         applescript = os.getcwd()+'/AppleScripts/recorder.scpt'
         command = 'osascript '+applescript
         os.system(command)
+        mouse =Controller()
+        time.sleep(1)
+        mouse.position = (geometry['X'], geometry['Y']+(geometry['Height']-self.height))
+        time.sleep(1)
+        print 'start : ('+str(geometry['X'])+', '+str(geometry['Y']+(geometry['Height']-self.height))+')'
+        mouse.press(Button.left)
+        time.sleep(1)
+        mouse.position = (geometry['X']+geometry['Width'], geometry['Y']+geometry['Height'])
+        print 'start : ('+str(geometry['X']+geometry['Width'])+', '+str( geometry['Y']+geometry['Height'])+')'
+        time.sleep(1)
+        mouse.release(Button.left)
+        time.sleep(1)
+        mouse.position = ((2*geometry['X']+geometry['Width'])/2, (2*geometry['Y']+2*geometry['Height']-self.height)/2)
+        time.sleep(1)
+        mouse.click(Button.left, 1)
+        
 
     def onClickAllRun(self):
         ret = self.onClickGameStart()
