@@ -57,14 +57,26 @@ class window(QWidget):
 
     def reload_gamelist(self):
         files = os.listdir(os.getcwd()+'/games/')
+        valid_games = self.validate_games(files)
         self.list_game.clear()
-        self.list_game.addItems(files)
-        app = files[0].split('.app')[0]
+        self.list_game.addItems(valid_games)
+        app = valid_games[0].split('.app')[0]
         self.current_game = app
-        self.current_game_location = os.getcwd()+'/games/'+files[0]+'/Contents/MacOS/'+app
+        self.current_game_location = os.getcwd()+'/games/'+valid_games[0]+'/Contents/MacOS/'+app
         print 'current item : '+files[0]
         print 'current app location : '+self.current_game_location
-
+    
+    def validate_games(self, files):
+        games = []
+        for f in files:
+            name = f.split('.app')[0]
+            path = os.getcwd()+'/games/'+f+'/Contents/MacOS/'+name
+            print name
+            print path
+            if os.path.isfile(path):
+                games.append(f)
+        return games
+        
     def onClickGameStart(self):
         if self.current_game_location != None and self.lb_width.text().isdigit() and self.lb_height.text().isdigit():
             self.width = float(self.lb_width.text())
@@ -73,11 +85,20 @@ class window(QWidget):
             #os.system(command)
             subprocess.Popen([command], shell=True)
             return True
+        else:
+            self.open_popup("Warning!!!", "Please set up resolution of game")
+            return False
 
     def onClickRecordStart(self):
+        applescript = os.getcwd() + '/AppleScripts/recorder_fullscreen.scpt'
+        command = 'osascript ' + applescript
+        os.system(command)
+
+    def record_start(self):
         command = "pgrep -l %s | awk '{print $1}'" %(self.current_game)
         child = subprocess.Popen(command, stdout=subprocess.PIPE, shell=True)
         result = child.communicate()[0].strip()
+        
         game_started = False
         options = kCGWindowListOptionOnScreenOnly
         geometry = None
@@ -90,7 +111,7 @@ class window(QWidget):
                     print geometry
                     game_started = True
         
-        applescript = os.getcwd()+'/AppleScripts/recorder.scpt'
+        applescript = os.getcwd()+'/AppleScripts/recorder_gameframe.scpt'
         command = 'osascript '+applescript
         os.system(command)
         mouse =Controller()
@@ -113,7 +134,10 @@ class window(QWidget):
     def onClickAllRun(self):
         ret = self.onClickGameStart()
         if ret:
-            self.onClickRecordStart()
+            self.record_start()
+    
+    def open_popup(self, title, text):
+        QMessageBox.warning(self, title, text)
 
     def home(self):
         
@@ -133,7 +157,7 @@ class window(QWidget):
         layout.addWidget(self.list_game)
         layout.addWidget(self.btn_reload_gamelist)
 
-        self.group_resolution = QGroupBox()
+        self.group_resolution = QGroupBox("Resolution")
         layout = QHBoxLayout()
         self.layout_base.addWidget(self.group_resolution)
         self.group_resolution.setLayout(layout)
